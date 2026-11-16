@@ -8,6 +8,12 @@ import os
 import sys
 import signal
 
+# On Linux, configure Chromium to avoid AppArmor unprivileged sandbox deadlocks
+if sys.platform.startswith("linux"):
+    flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+    if "--no-sandbox" not in flags:
+        os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = f"{flags} --no-sandbox --disable-dev-shm-usage".strip()
+
 # Ensure both project root and src/ are on Python module search path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(PROJECT_ROOT, "src")

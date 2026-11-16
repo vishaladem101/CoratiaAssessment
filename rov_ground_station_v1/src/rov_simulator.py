@@ -96,10 +96,9 @@ class ROVSimulator:
 
     def enable_depth_hold(self, target=None):
         self.depth_hold = True
+        self.last_input_time = time.time()
         if target is not None:
             self.target_depth = max(0.0, float(target))
-        else:
-            self.target_depth = max(0.0, round(self.depth, 2))
 
     def disable_depth_hold(self):
         self.depth_hold = False
@@ -108,10 +107,9 @@ class ROVSimulator:
 
     def enable_heading_hold(self, target=None):
         self.heading_hold = True
+        self.last_input_time = time.time()
         if target is not None:
             self.target_heading = float(target) % 360.0
-        else:
-            self.target_heading = float(self.yaw) % 360.0
 
     def disable_heading_hold(self):
         self.heading_hold = False
@@ -142,11 +140,13 @@ class ROVSimulator:
             self.enable_depth_hold(self.depth if snap_to_current else None)
             self.enable_heading_hold(self.yaw if snap_to_current else None)
     
-    def set_target_depth(self, depth:float):
+    def set_target_depth(self, depth: float):
         self.target_depth = max(0.0, float(depth))
+        self.last_input_time = time.time()
 
-    def set_target_heading(self, heading:float):
+    def set_target_heading(self, heading: float):
         self.target_heading = float(heading) % 360.0
+        self.last_input_time = time.time()
 
     def set_water_current(self, speed: float, direction: float = 90.0, vertical: float = 0.0):
         """Sets the environmental water current (speed in m/s, direction in degrees, vertical downdraft in m/s)."""
@@ -162,13 +162,20 @@ class ROVSimulator:
         self.target_surge = max(-1.0, min(1.0, surge))
         self.target_sway = max(-1.0, min(1.0, sway))
 
-        # Only apply manual heave if Depth Hold is not active
+        # In Manual, apply direct heave; in Depth Hold, W/S slews target depth smoothly
         if not self.depth_hold:
             self.target_heave = max(-1.0, min(1.0, heave))
+        elif heave != 0.0:
+            self.target_depth = max(0.0, min(100.0, round(self.target_depth + heave * 0.05, 2)))
 
-        # Only apply manual yaw if Heading Hold is not active
+        # In Manual, apply direct yaw; in Heading Hold, A/D slews target heading smoothly
         if not self.heading_hold:
             self.target_yaw = max(-1.0, min(1.0, yaw))
+        elif yaw != 0.0:
+            self.target_heading = round((self.target_heading + yaw * 1.5) % 360.0, 1)
+
+    # Alias for pilot keyboard dispatch
+    set_pilot_thrust = send_manual_thrust
 
     # Simulation Step (Runs 20 times every second via QTimer)
     def update(self, dt=DT):
@@ -184,33 +191,61 @@ class ROVSimulator:
             self.actual_sway = 0.0
             self.actual_heave = 0.0
             self.actual_yaw = 0.0
+            if self.current_speed == 0.0 and self.current_vertical == 0.0:
+                self.speed_surge = 0.0
+                self.speed_sway = 0.0
+                self.speed_heave = 0.0
+                self.speed_yaw = 0.0
         else:
-            # Inactivity watchdog: cuts unheld manual axes after 1.0 second
+            # Inactivity watchdog: cuts unheld manual axes after 1.0 second of silence
             if current_time - self.last_input_time > SAFETY_TIMEOUT:
                 self.target_surge = 0.0
                 self.target_sway = 0.0
+                self.actual_surge = 0.0
+                self.actual_sway = 0.0
                 if not self.depth_hold:
                     self.target_heave = 0.0
+                    self.actual_heave = 0.0
                 if not self.heading_hold:
                     self.target_yaw = 0.0
+                    self.actual_yaw = 0.0
 
-        # Step B: Closed-Loop Hold Controllers (Independent P-Controllers)
+                # Inactivity watchdog strictly guarantees vehicle does not move after 1 second unpressed
+                if self.current_speed == 0.0:
+                    self.speed_surge = 0.0
+                    self.speed_sway = 0.0
+                if self.current_vertical == 0.0 and not self.depth_hold:
+                    self.speed_heave = 0.0
+                if not self.heading_hold:
+                    self.speed_yaw = 0.0
+
+        # Step B: Closed-Loop Hold Controllers (Independent PD-Controllers)
         if self.armed and self.depth_hold:
             depth_error = self.target_depth - self.depth
-            calculated_heave = KP_DEPTH * depth_error
+            calculated_heave = 1.0 * depth_error - 0.4 * self.speed_heave
             self.target_heave = max(-1.0, min(1.0, calculated_heave))
 
         if self.armed and self.heading_hold:
             heading_error = (self.target_heading - self.yaw + 540.0) % 360.0 - 180.0
-            calculated_yaw = KP_HEADING * heading_error
+            calculated_yaw = 0.04 * heading_error - 0.015 * self.speed_yaw
             self.target_yaw = max(-1.0, min(1.0, calculated_yaw))
 
-        # Step C: Thruster Response Delay (Exponential filter)
+        # Step C: Thruster Response Delay (Exponential lag filter for motor inertia)
         if self.armed:
             self.actual_surge += THRUSTER_ALPHA * (self.target_surge - self.actual_surge)
             self.actual_sway += THRUSTER_ALPHA * (self.target_sway - self.actual_sway)
             self.actual_heave += THRUSTER_ALPHA * (self.target_heave - self.actual_heave)
             self.actual_yaw += THRUSTER_ALPHA * (self.target_yaw - self.actual_yaw)
+
+            # Snap residual micro-thrust (< 0.01) to absolute 0.0 when target is zero
+            if self.target_surge == 0.0 and abs(self.actual_surge) < 0.01:
+                self.actual_surge = 0.0
+            if self.target_sway == 0.0 and abs(self.actual_sway) < 0.01:
+                self.actual_sway = 0.0
+            if self.target_heave == 0.0 and not self.depth_hold and abs(self.actual_heave) < 0.01:
+                self.actual_heave = 0.0
+            if self.target_yaw == 0.0 and not self.heading_hold and abs(self.actual_yaw) < 0.01:
+                self.actual_yaw = 0.0
         else:
             self.actual_surge = 0.0
             self.actual_sway = 0.0
@@ -235,11 +270,38 @@ class ROVSimulator:
         accel_heave = self.actual_heave * MAX_SPEED_HEAVE * 2.0
         accel_yaw = self.actual_yaw * MAX_SPEED_YAW * 2.0
         
-        # 4. Drag damps relative motion; when thrust is 0, ROV drifts with water current
-        self.speed_surge = current_body_surge + (rel_surge + accel_surge * dt) * DRAG_COEFF
-        self.speed_sway  = current_body_sway  + (rel_sway  + accel_sway  * dt) * DRAG_COEFF
-        self.speed_heave = current_body_heave + (rel_heave + accel_heave * dt) * DRAG_COEFF
-        self.speed_yaw   = (self.speed_yaw + accel_yaw * dt) * DRAG_COEFF
+        # 4. Drag damps relative motion; when key released (target==0), damp promptly
+        if self.target_surge != 0.0:
+            self.speed_surge = current_body_surge + (rel_surge + accel_surge * dt) * DRAG_COEFF
+        else:
+            # Active hydrodynamic deceleration on key release
+            rel_surge = rel_surge * 0.50
+            if abs(rel_surge) < 0.03:
+                rel_surge = 0.0
+            self.speed_surge = current_body_surge + rel_surge
+
+        if self.target_sway != 0.0:
+            self.speed_sway = current_body_sway + (rel_sway + accel_sway * dt) * DRAG_COEFF
+        else:
+            rel_sway = rel_sway * 0.50
+            if abs(rel_sway) < 0.03:
+                rel_sway = 0.0
+            self.speed_sway = current_body_sway + rel_sway
+
+        if self.depth_hold or self.target_heave != 0.0:
+            self.speed_heave = current_body_heave + (rel_heave + accel_heave * dt) * DRAG_COEFF
+        else:
+            rel_heave = rel_heave * 0.50
+            if abs(rel_heave) < 0.03:
+                rel_heave = 0.0
+            self.speed_heave = current_body_heave + rel_heave
+
+        if self.heading_hold or self.target_yaw != 0.0:
+            self.speed_yaw = (self.speed_yaw + accel_yaw * dt) * DRAG_COEFF
+        else:
+            self.speed_yaw = self.speed_yaw * 0.50
+            if abs(self.speed_yaw) < 0.3:
+                self.speed_yaw = 0.0
         
         # Step E: Update Position and Orientation
         # 1. Depth (cannot float above surface: depth >= 0.0)

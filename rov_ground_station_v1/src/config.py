@@ -12,8 +12,8 @@ THRUSTER_ALPHA = 0.25 # Motor lag factor (0.0 to 1.0; 0.25 gives ~0.5s smooth ra
 DRAG_COEFF = 0.88     # Damping factor per step (water resistance)
 MAX_SPEED_SURGE = 1.8 # Forward/backward max speed in m/s
 MAX_SPEED_SWAY = 1.2  # Lateral strafe max speed in m/s
-MAX_SPEED_HEAVE = 1.0 # Vertical dive/surface max speed in m/s
-MAX_SPEED_YAW = 35.0  # Turn rate in deg/s
+MAX_SPEED_HEAVE = 1.4 # Vertical dive/surface max speed in m/s
+MAX_SPEED_YAW = 40.0  # Turn rate in deg/s
 
 # Initial State - Nagarjuna Sagar Dam Reservoir (Underwater Dam Inspection)
 START_LAT = 16.579554   # Reservoir water surface

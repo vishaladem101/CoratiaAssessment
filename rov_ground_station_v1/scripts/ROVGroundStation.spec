@@ -9,29 +9,36 @@ import sys
 
 block_cipher = None
 
+# Resolve absolute paths from spec location
+SPECPATH = os.path.dirname(os.path.abspath(SPEC)) if 'SPEC' in locals() else os.getcwd()
+PROJECT_ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
+
 added_files = [
-    ('assets/map_view.html', 'assets'),
-    ('assets/leaflet.js', 'assets'),
-    ('assets/leaflet.css', 'assets'),
-    ('assets/rov_icon.png', 'assets'),
-    ('assets/down_arrow.svg', 'assets'),
-    ('assets/map_view.html', '.'),
-    ('assets/leaflet.js', '.'),
-    ('assets/leaflet.css', '.'),
-    ('assets/rov_icon.png', '.'),
-    ('assets/down_arrow.svg', '.')
+    (os.path.join(PROJECT_ROOT, 'assets', 'map_view.html'), 'assets'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'leaflet.js'), 'assets'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'leaflet.css'), 'assets'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'rov_icon.png'), 'assets'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'down_arrow.svg'), 'assets'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'tiles'), 'assets/tiles'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'map_view.html'), '.'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'leaflet.js'), '.'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'leaflet.css'), '.'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'rov_icon.png'), '.'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'down_arrow.svg'), '.'),
+    (os.path.join(PROJECT_ROOT, 'assets', 'tiles'), 'tiles')
 ]
 
 a = Analysis(
-    ['main.py'],
-    pathex=['.', 'src', '..'],
+    [os.path.join(PROJECT_ROOT, 'main.py')],
+    pathex=[PROJECT_ROOT, os.path.join(PROJECT_ROOT, 'src')],
     binaries=[],
     datas=added_files,
     hiddenimports=[
         'PySide6.QtWebEngineWidgets',
         'PySide6.QtWebEngineCore',
         'pyqtgraph',
-        'numpy'
+        'numpy',
+        'src.joystick_controller'
     ],
     hookspath=[],
     hooksconfig={},

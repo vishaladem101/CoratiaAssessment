@@ -84,41 +84,81 @@
         var startLat = 16.579554;
         var startLon = 79.312759;
 
-        // Initialize map centered at dam reservoir: default zoom 18
+        // Bounding box for Nagarjuna Sagar Dam local inspection region
+        var damBounds = L.latLngBounds(
+            [16.545, 79.275],
+            [16.615, 79.350]
+        );
+
+        // Initialize map centered at dam reservoir: default zoom 17 (optimal inspection view)
         var map = L.map('map', {
             zoomControl: true,
             attributionControl: false,
-            minZoom: 12,
-            maxZoom: 18 // Default maxZoom for Satellite
-        }).setView([startLat, startLon], 18);
+            minZoom: 14,
+            maxZoom: 18,
+            maxBounds: damBounds,
+            maxBoundsViscosity: 0.8
+        }).setView([startLat, startLon], 17);
 
-        // 1. High-Resolution Satellite Map (Esri World Imagery) - capped at zoom 18 to avoid blank tiles
-        var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        // 1. High-Resolution Offline Satellite Layer (Pre-cached Local Tiles) - Default
+        var offlineSatLayer = L.tileLayer('tiles/satellite/{z}/{x}/{y}.jpg', {
+            minZoom: 14,
+            maxZoom: 18,
+            maxNativeZoom: 18,
+            bounds: damBounds
+        }).addTo(map);
+
+        // 2. High-Resolution Offline Street Map (Pre-cached Local Tiles)
+        var offlineStreetLayer = L.tileLayer('tiles/street/{z}/{x}/{y}.png', {
+            minZoom: 14,
+            maxZoom: 18,
+            maxNativeZoom: 18,
+            bounds: damBounds
+        });
+
+        // 3. Online Live Satellite Stream (Esri World Imagery fallback)
+        var onlineSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             minZoom: 12,
             maxZoom: 18,
             maxNativeZoom: 18
-        }).addTo(map);
+        });
 
-        // 2. OpenStreetMap Standard - supports deep zoom all the way to 21!
-        var osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // 4. Online OpenStreetMap Stream fallback
+        var onlineOsmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             minZoom: 12,
             maxNativeZoom: 19,
             maxZoom: 21
         });
 
-        // Dynamic layer zoom handler: expands maxZoom to 21 for Street Map, limits to 18 for Satellite
+        // Dynamic layer switcher with offline local as primary
+        var baseMaps = {
+            "Satellite (Offline Local)": offlineSatLayer,
+            "Street Map (Offline Local)": offlineStreetLayer,
+            "Satellite (Online Stream)": onlineSatLayer,
+            "Street Map (Online OSM)": onlineOsmLayer
+        };
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
         map.on('baselayerchange', function(e) {
-            if (e.name === 'Satellite View') {
+            if (e.name.indexOf('Online') !== -1) {
+                map.setMaxBounds(null); // Allow worldwide navigation when online
+                map.setMinZoom(12);
+                map.setMaxZoom(e.name.indexOf('OSM') !== -1 ? 21 : 18);
+            } else {
+                map.setMaxBounds(damBounds);
+                map.setMinZoom(14);
                 map.setMaxZoom(18);
-                if (map.getZoom() > 18) {
-                    map.setZoom(18);
-                }
-            } else if (e.name === 'Street Map') {
-                map.setMaxZoom(21);
+                if (map.getZoom() < 14) map.setZoom(14);
+                if (map.getZoom() > 18) map.setZoom(18);
             }
         });
 
-        L.control.layers({ "Satellite View": satelliteLayer, "Street Map": osmLayer }, null, { position: 'topright' }).addTo(map);
+        // Dynamic responsiveness: instantly re-render tiles on window resize
+        window.addEventListener('resize', function() {
+            if (map) {
+                map.invalidateSize();
+            }
+        });
 
         // Surface Support Boat (The GPS Drop Point Anchor)
         var boatIcon = L.divIcon({

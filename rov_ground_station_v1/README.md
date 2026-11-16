@@ -46,41 +46,43 @@ Run the application according to your operating system:
 
 ---
 
-## 2. Pilot Keyboard Controls
+## 2. Pilot Controls (Keyboard & Joystick)
 
-Once the station opens, click the red **DISARMED** button in the top bar to **ARM** thrusters, then drive using:
+Once the station opens, click the red **DISARMED** button in the top bar to **ARM** thrusters, then drive using keyboard or plug-and-play USB gamepad / joystick:
 
-| Key | Motion | Axis | Real-World ROV Analogy |
+| Motion | Keyboard Key | Gamepad / Joystick | Real-World ROV Analogy |
 | :--- | :--- | :--- | :--- |
-| **Up Arrow / Down Arrow** | Surge Forward / Backward | Longitudinal | Forward/Reverse thrusters |
-| **Left Arrow / Right Arrow** | Sway Strafe Left / Right | Lateral | Lateral strafe thrusters |
-| **W / S** | Surface (Up) / Dive (Down) | Vertical Heave | Vertical heave thrusters |
-| **A / D** | Turn Left / Turn Right | Yaw Rotation | Differential yaw torque |
+| **Surge Forward / Back** | **Up / Down Arrow** | **Left Stick (Y-axis)** | Forward/Reverse thrusters |
+| **Strafe Left / Right** | **Left / Right Arrow** | **Left Stick (X-axis)** | Lateral strafe thrusters |
+| **Dive / Surface** | **S / W** | **Right Stick (Y-axis)** | Vertical heave thrusters |
+| **Turn Left / Right** | **A / D** | **Right Stick (X-axis)** | Differential yaw torque |
+| **Arm / Disarm Toggle** | **Top Bar Button** | **Button A / Cross** | Safety ignition lock |
+| **Manual Override** | **🕹️ MANUAL Button**| **Button B / Circle**| Autopilot release |
 
 ---
 
 ## 3. Key Features
 
 1. **Subsea Water Column Cross-Section (Live 2D Ocean View):**
-   - Live visual rendering of the surface waves and **Surface Support Boat (GPS Anchor)** floating at 0m.
+   - Live visual rendering of surface waves and **Surface Support Boat (GPS Anchor)** floating at 0m.
    - An **umbilical tether cable** connects the surface boat to the inspection ROV.
    - Dynamic auto-scaling depth ruler that smoothly adjusts from shallow surface to deep reservoir floor (100m+).
    - Real-time forward headlights beaming through the water column.
 
 2. **Depth-vs-Time Real-Time Chart:**
    - Hardware-accelerated `pyqtgraph` inverted depth chart (0m at surface, diving downward).
-   - Marked with a dashed cyan **Surface (0m)** reference line and dynamic gold **Target Depth** setpoint line.
+   - Marked with dashed cyan **Surface (0m)** reference line and dynamic gold **Target Depth** setpoint line.
    - Standard SI time axis permanently locked in seconds (`s`).
 
 3. **High-Resolution Satellite Surface Map:**
    - Positioned directly over **Nagarjuna Sagar Dam Reservoir** (`16.579554° N, 79.312759° E`).
+   - 100% offline pre-cached satellite tiles + dynamic online fallback for global satellite & OSM streaming layers.
    - Displays real-time GPS coordinates, compass heading, and drift vectors for both the boat and the ROV.
-   - Dual-layer map switching: Satellite View and Street Map.
 
 4. **Multi-Axis Closed-Loop Autopilot:**
-   - Independent proportional (P) controllers for Depth Hold and Heading Hold.
+   - Independent proportional-derivative (PD) controllers for Depth Hold and Heading Hold.
    - Supports simultaneous dual hold (`DEPTH & HDG HOLD`) with smooth disturbance rejection.
-   - Setpoint inputs with immediate manual keyboard override.
+   - Smooth snap-to-current setpoints on mode selection and direct manual keyboard/spinbox overrides.
 
 5. **Simulated Water Current (Hydrodynamic Environmental Drift):**
    - Implements realistic fluid drag physics relative to moving water currents.
@@ -89,10 +91,14 @@ Once the station opens, click the red **DISARMED** button in the top bar to **AR
    - Optional **Spillway Downdraft (0.25 m/s suction)** demonstrating active heave thruster compensation during Depth Hold.
 
 6. **Safety & Power Systems:**
-   - Safety Arm/Disarm interlock: Thrusters are locked to zero thrust when disarmed.
+   - Safety Arm/Disarm interlock: Thrusters are strictly locked to zero thrust when disarmed.
    - Disarm alert banner across the cockpit.
    - 1.0-second inactivity watchdog that neutralizes thrust when manual controls are released.
    - Real-world **18.5V–19V (5S Li-ion / NMC)** battery simulation with dynamic load-based discharge and multi-stage color health indicators.
+
+7. **USB Gamepad & Joystick Support (Requirement 4):**
+   - Plug-and-play controller detection (Linux `/dev/input/js*` and Windows gamepad APIs).
+   - Dual analog stick control (Left stick: surge/sway; Right stick: heave/yaw) with deadzone drift filtering.
 
 ---
 
@@ -130,17 +136,29 @@ rov_ground_station_v1/
 │   ├── down_arrow.svg          # Custom vector dropdown chevron
 │   ├── map_view.html           # Leaflet Dam Reservoir Satellite & Street map
 │   ├── leaflet.js              # Bundled offline Leaflet JavaScript
-│   └── leaflet.css             # Bundled Leaflet stylesheet
+│   ├── leaflet.css             # Bundled Leaflet stylesheet
+│   └── tiles/                  # Pre-cached 100% offline map tiles (Satellite & Street)
 ├── src/                        # Core Application Source Code (MVC)
 │   ├── __init__.py
 │   ├── config.py               # Constants, hydrodynamics, 5S battery, reservoir GPS
-│   ├── rov_simulator.py        # [Model] Physics, kinematics & P-controllers
-│   └── ui_dashboard.py         # [View] Cockpit UI, custom title bar & widgets
+│   ├── rov_simulator.py        # [Model] Physics, kinematics & PD-controllers
+│   ├── joystick_controller.py  # USB gamepad & joystick input processor
+│   ├── ui_dashboard.py         # [View] Backward-compatibility re-export wrapper
+│   └── view/                   # [View Package] Modular responsive UI components
+│       ├── __init__.py         # View module exports
+│       ├── dashboard.py        # Master window shell & 20 Hz telemetry dispatch
+│       ├── title_bar.py        # Maritime blue frameless window title bar
+│       ├── top_bar.py          # 2-Tier responsive command ribbon & battery gauge
+│       ├── left_panel.py       # Telemetry table, thrusters, current & help box
+│       ├── right_panel.py      # 2D subsea column, depth plot & satellite map
+│       ├── custom_widgets.py   # SubseaWaterColumnWidget & CleanSpinBox
+│       └── resources.py        # Asset path resolution utility
 ├── scripts/                    # Launchers & Desktop packaging automation
 │   ├── run_linux.sh            # 1-Click launcher for Ubuntu / Linux
 │   ├── run_windows.bat         # 1-Click launcher for Windows
 │   ├── run_mac.command         # 1-Click launcher for macOS
 │   ├── build_desktop_app.py    # Desktop packaging build script (for developers)
+│   ├── download_offline_tiles.py # Tile downloader for offline dam reservoir coverage
 │   ├── ROVGroundStation.spec   # PyInstaller cross-platform bundle specification
 │   ├── ROV_Ground_Station.desktop # Linux desktop shortcut
 │   └── requirements.txt        # Minimal cross-platform dependencies
