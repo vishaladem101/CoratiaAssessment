@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ROV Ground Station
+Comment=Nagarjuna Sagar Dam ROV Telemetry Station (Coratia Assessment)
+Exec=/home/adem-vishal/Desktop/CoratiaAssessment/rov_ground_station_v1/dist/ROVGroundStation/ROVGroundStation
+Path=/home/adem-vishal/Desktop/CoratiaAssessment/rov_ground_station_v1/dist/ROVGroundStation
+Icon=/home/adem-vishal/Desktop/CoratiaAssessment/rov_ground_station_v1/assets/rov_icon.png
+Terminal=false
+Categories=Utility;Engineering;Development;
+

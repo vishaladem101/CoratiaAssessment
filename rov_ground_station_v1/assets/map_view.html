@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>ROV Dam Inspection Navigation</title>
+    <link rel="stylesheet" href="leaflet.css" />
+    <script src="leaflet.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #0b1522;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Remove any default Leaflet white box/border */
+        .no-border-icon {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Rotating ROV Icon - No CSS transition to prevent 360-degree wrap jerks */
+        .rov-container {
+            width: 52px;
+            height: 52px;
+            position: relative;
+            transform-origin: center center;
+        }
+
+        /* Front Light Beam */
+        .headlights {
+            position: absolute;
+            top: -26px;
+            left: 7px;
+            width: 38px;
+            height: 28px;
+            background: linear-gradient(to top, rgba(56, 189, 248, 0.55), rgba(56, 189, 248, 0.0));
+            clip-path: polygon(30% 100%, 70% 100%, 100% 0%, 0% 0%);
+            pointer-events: none;
+        }
+
+        /* Surface Boat Icon */
+        .boat-icon {
+            font-size: 24px;
+            text-align: center;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.9));
+        }
+
+        /* Bottom HUD Overlay */
+        .hud-overlay {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid #334155;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            color: #94a3b8;
+            font-family: monospace;
+            pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .hud-overlay b {
+            color: #38bdf8;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="hud-overlay">
+        SITE: <b>Nagarjuna Sagar Dam</b> | LAT: <b id="lat">16.579554</b> | LON: <b id="lon">79.312759</b> | HDG: <b id="hdg">000.0°</b> | CURRENT: <b id="cur" style="color:#38bdf8">CALM (0.0 m/s)</b>
+    </div>
+
+    <script>
+        var startLat = 16.579554;
+        var startLon = 79.312759;
+
+        // Initialize map centered at dam reservoir: default zoom 18
+        var map = L.map('map', {
+            zoomControl: true,
+            attributionControl: false,
+            minZoom: 12,
+            maxZoom: 18 // Default maxZoom for Satellite
+        }).setView([startLat, startLon], 18);
+
+        // 1. High-Resolution Satellite Map (Esri World Imagery) - capped at zoom 18 to avoid blank tiles
+        var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            minZoom: 12,
+            maxZoom: 18,
+            maxNativeZoom: 18
+        }).addTo(map);
+
+        // 2. OpenStreetMap Standard - supports deep zoom all the way to 21!
+        var osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            minZoom: 12,
+            maxNativeZoom: 19,
+            maxZoom: 21
+        });
+
+        // Dynamic layer zoom handler: expands maxZoom to 21 for Street Map, limits to 18 for Satellite
+        map.on('baselayerchange', function(e) {
+            if (e.name === 'Satellite View') {
+                map.setMaxZoom(18);
+                if (map.getZoom() > 18) {
+                    map.setZoom(18);
+                }
+            } else if (e.name === 'Street Map') {
+                map.setMaxZoom(21);
+            }
+        });
+
+        L.control.layers({ "Satellite View": satelliteLayer, "Street Map": osmLayer }, null, { position: 'topright' }).addTo(map);
+
+        // Surface Support Boat (The GPS Drop Point Anchor)
+        var boatIcon = L.divIcon({
+            className: 'no-border-icon',
+            html: '<div class="boat-icon">🚤</div>',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+        });
+        var boatMarker = L.marker([startLat, startLon], { icon: boatIcon }).addTo(map);
+        boatMarker.bindTooltip("Surface Support Boat (GPS Anchor)", { permanent: false, direction: 'top' });
+
+        // Umbilical Tether Cable (from Boat to ROV)
+        var tetherLine = L.polyline([[startLat, startLon], [startLat, startLon]], {
+            color: '#f59e0b',
+            weight: 3,
+            dashArray: '5, 6',
+            opacity: 0.95
+        }).addTo(map);
+
+        // ROV Yellow Submarine SVG Icon (Clean, no white border)
+        var rovHtml = `
+            <div class="rov-container" id="rov-rotator">
+                <div class="headlights"></div>
+                <svg width="52" height="52" viewBox="0 0 52 52">
+                    <!-- Left/Right Thrusters -->
+                    <rect x="7" y="15" width="5" height="22" rx="2" fill="#1e293b" stroke="#0ea5e9" stroke-width="1.2"/>
+                    <rect x="40" y="15" width="5" height="22" rx="2" fill="#1e293b" stroke="#0ea5e9" stroke-width="1.2"/>
+                    <!-- Main Safety-Yellow Chassis -->
+                    <rect x="14" y="11" width="24" height="30" rx="5" fill="#f59e0b" stroke="#d97706" stroke-width="1.8"/>
+                    <!-- Camera Dome -->
+                    <path d="M18 11 C18 5, 34 5, 34 11 Z" fill="#38bdf8" stroke="#0284c7" stroke-width="1.2"/>
+                    <!-- Front Spotlights -->
+                    <circle cx="16" cy="12" r="2.2" fill="#ffffff"/>
+                    <circle cx="36" cy="12" r="2.2" fill="#ffffff"/>
+                    <!-- Directional Nose Arrow -->
+                    <polygon points="26,14 22,19 30,19" fill="#ffffff"/>
+                </svg>
+            </div>
+        `;
+        var rovIcon = L.divIcon({
+            className: 'no-border-icon',
+            html: rovHtml,
+            iconSize: [52, 52],
+            iconAnchor: [26, 26]
+        });
+        var rovMarker = L.marker([startLat, startLon], { icon: rovIcon }).addTo(map);
+
+        // Function called from Python Qt
+        function updateROV(lat, lon, heading, currentSpeed, currentDir) {
+            if (!rovMarker || !map) return;
+
+            var newPos = [lat, lon];
+            rovMarker.setLatLng(newPos);
+            tetherLine.setLatLngs([[startLat, startLon], newPos]);
+
+            // Instant smooth rotation without CSS animation jerk
+            var rot = document.getElementById('rov-rotator');
+            if (rot) {
+                rot.style.transform = 'rotate(' + heading + 'deg)';
+            }
+
+            // Update HUD text
+            document.getElementById('lat').innerText = lat.toFixed(6);
+            document.getElementById('lon').innerText = lon.toFixed(6);
+            document.getElementById('hdg').innerText = heading.toFixed(1) + '°';
+
+            if (typeof currentSpeed !== 'undefined') {
+                var curElem = document.getElementById('cur');
+                if (curElem) {
+                    if (currentSpeed > 0) {
+                        curElem.innerText = currentSpeed.toFixed(2) + ' m/s @ ' + Math.round(currentDir) + '°';
+                        curElem.style.color = '#facc15';
+                    } else {
+                        curElem.innerText = 'CALM (0.0 m/s)';
+                        curElem.style.color = '#38bdf8';
+                    }
+                }
+            }
+
+            // Auto-center map if ROV swims near boundaries
+            if (!map.getBounds().contains(newPos)) {
+                map.panTo(newPos);
+            }
+        }
+    </script>
+</body>
+</html>
