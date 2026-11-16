@@ -39,21 +39,40 @@ def deg2num(lat_deg, lon_deg, zoom):
     return (xtile, ytile)
 
 
-def fetch_tile(url, dest_path, headers):
-    if os.path.exists(dest_path) and os.path.getsize(dest_path) > 500:
-        return True, dest_path  # Already downloaded
+def fetch_tile(url, dest_path, headers, fallback_url=None, force=False):
+    # Check if already downloaded and not the 403 error image (6725 bytes)
+    if not force and os.path.exists(dest_path):
+        size = os.path.getsize(dest_path)
+        if size > 500 and size != 6725:
+            return True, dest_path
+
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     req = urllib.request.Request(url, headers=headers)
     for attempt in range(3):
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 data = resp.read()
-                if len(data) > 200:
+                # 6725 bytes is the exact OSM 403 tile policy block image
+                if len(data) > 200 and len(data) != 6725:
                     with open(dest_path, "wb") as f:
                         f.write(data)
                     return True, dest_path
         except Exception:
-            time.sleep(0.5)
+            time.sleep(0.3)
+
+    # Fallback to CartoDB Voyager OSM if primary OSM URL fails
+    if fallback_url:
+        try:
+            fb_req = urllib.request.Request(fallback_url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+            with urllib.request.urlopen(fb_req, timeout=8) as resp:
+                data = resp.read()
+                if len(data) > 200 and len(data) != 6725:
+                    with open(dest_path, "wb") as f:
+                        f.write(data)
+                    return True, dest_path
+        except Exception:
+            pass
+
     return False, dest_path
 
 
@@ -69,8 +88,13 @@ def download_tiles():
     # 1. Satellite Tiles (Esri World Imagery)
     # Esri URL format: tile/{z}/{y}/{x}
     sat_headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
-    # 2. Street Tiles (OSM)
-    osm_headers = {"User-Agent": "ROVGroundStation-OfflineDownloader/1.0 (contact: info@coratia.com)"}
+
+    # 2. Street Tiles (OSM with browser headers & CartoDB fallback)
+    osm_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Referer": "https://www.openstreetmap.org/",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    }
 
     for z, (dx, dy) in ZOOM_CONFIG.items():
         cx, cy = deg2num(CENTER_LAT, CENTER_LON, z)
@@ -79,22 +103,23 @@ def download_tiles():
                 # Satellite: saved as tiles/satellite/{z}/{x}/{y}.jpg
                 sat_dest = os.path.join(TILES_DIR, "satellite", str(z), str(x), f"{y}.jpg")
                 sat_url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                tasks.append(("Satellite", sat_url, sat_dest, sat_headers))
+                tasks.append(("Satellite", sat_url, sat_dest, sat_headers, None))
 
                 # Street Map: saved as tiles/street/{z}/{x}/{y}.png
                 osm_dest = os.path.join(TILES_DIR, "street", str(z), str(x), f"{y}.png")
                 osm_url = f"https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                tasks.append(("Street", osm_url, osm_dest, osm_headers))
+                fallback_url = f"https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
+                tasks.append(("Street", osm_url, osm_dest, osm_headers, fallback_url))
 
     print(f"Queued {len(tasks)} tiles for offline caching across zooms 14 to 18...")
 
     downloaded = 0
     failed = 0
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
         future_map = {
-            executor.submit(fetch_tile, url, dest, headers): (layer, dest)
-            for (layer, url, dest, headers) in tasks
+            executor.submit(fetch_tile, url, dest, headers, fb, True if layer == "Street" else False): (layer, dest)
+            for (layer, url, dest, headers, fb) in tasks
         }
         for future in concurrent.futures.as_completed(future_map):
             layer, dest = future_map[future]

@@ -5,10 +5,10 @@ Self-Bootstrapping:
   - If executed with system Python, it automatically detects/creates the local 'venv',
     ensures PyInstaller is installed in that venv, and re-launches itself inside the venv.
   - Avoids 'externally-managed-environment' errors on modern Linux (Ubuntu 24.04+).
-  - Cross-platform: works seamlessly on Linux, macOS, and Windows.
+  - Supported platforms: Linux (Ubuntu) and Windows.
 
 Usage:
-  python3 scripts/build_desktop_app.py   (Linux / macOS)
+  python3 scripts/build_desktop_app.py   (Linux / Ubuntu)
   python scripts\build_desktop_app.py    (Windows)
 """
 

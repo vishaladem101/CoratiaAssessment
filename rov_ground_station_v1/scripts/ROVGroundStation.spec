@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 # ==============================================================================
 # ROV Telemetry Ground Station - PyInstaller Spec File
-# Cross-Platform: Windows (.exe), Linux (ELF), macOS (.app)
+# Supported Platforms: Linux (ELF) and Windows (.exe)
 # ==============================================================================
 
 import os
@@ -37,8 +37,7 @@ a = Analysis(
         'PySide6.QtWebEngineWidgets',
         'PySide6.QtWebEngineCore',
         'pyqtgraph',
-        'numpy',
-        'src.joystick_controller'
+        'numpy'
     ],
     hookspath=[],
     hooksconfig={},

@@ -100,58 +100,28 @@
             maxBoundsViscosity: 0.8
         }).setView([startLat, startLon], 17);
 
-        // 1. High-Resolution Offline Satellite Layer (Pre-cached Local Tiles) - Default
-        var offlineSatLayer = L.tileLayer('tiles/satellite/{z}/{x}/{y}.jpg', {
+        // 1. Satellite Layer (Local Offline Tiles) - Default
+        var satLayer = L.tileLayer('tiles/satellite/{z}/{x}/{y}.jpg', {
             minZoom: 14,
             maxZoom: 18,
             maxNativeZoom: 18,
             bounds: damBounds
         }).addTo(map);
 
-        // 2. High-Resolution Offline Street Map (Pre-cached Local Tiles)
-        var offlineStreetLayer = L.tileLayer('tiles/street/{z}/{x}/{y}.png', {
+        // 2. Street Map Layer (Local Offline Tiles)
+        var streetLayer = L.tileLayer('tiles/street/{z}/{x}/{y}.png', {
             minZoom: 14,
             maxZoom: 18,
             maxNativeZoom: 18,
             bounds: damBounds
         });
 
-        // 3. Online Live Satellite Stream (Esri World Imagery fallback)
-        var onlineSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            minZoom: 12,
-            maxZoom: 18,
-            maxNativeZoom: 18
-        });
-
-        // 4. Online OpenStreetMap Stream fallback
-        var onlineOsmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            minZoom: 12,
-            maxNativeZoom: 19,
-            maxZoom: 21
-        });
-
-        // Dynamic layer switcher with offline local as primary
+        // Map layer switcher (both strictly local offline tiles)
         var baseMaps = {
-            "Satellite (Offline Local)": offlineSatLayer,
-            "Street Map (Offline Local)": offlineStreetLayer,
-            "Satellite (Online Stream)": onlineSatLayer,
-            "Street Map (Online OSM)": onlineOsmLayer
+            "Satellite": satLayer,
+            "Street Map": streetLayer
         };
         L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
-
-        map.on('baselayerchange', function(e) {
-            if (e.name.indexOf('Online') !== -1) {
-                map.setMaxBounds(null); // Allow worldwide navigation when online
-                map.setMinZoom(12);
-                map.setMaxZoom(e.name.indexOf('OSM') !== -1 ? 21 : 18);
-            } else {
-                map.setMaxBounds(damBounds);
-                map.setMinZoom(14);
-                map.setMaxZoom(18);
-                if (map.getZoom() < 14) map.setZoom(14);
-                if (map.getZoom() > 18) map.setZoom(18);
-            }
-        });
 
         // Dynamic responsiveness: instantly re-render tiles on window resize
         window.addEventListener('resize', function() {

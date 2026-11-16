@@ -24,7 +24,6 @@ from src.view.title_bar import CustomTitleBar
 from src.view.top_bar import TopCommandBar
 from src.view.left_panel import LeftTelemetryPanel
 from src.view.right_panel import RightVisualsPanel
-from src.joystick_controller import JoystickController
 
 
 class ROVDashboard(QMainWindow):
@@ -119,7 +118,6 @@ class ROVDashboard(QMainWindow):
         self.depth_history = deque(maxlen=200)
         self.elapsed_time = 0.0
         self.pressed_keys = set()
-        self.joystick = JoystickController()
 
         # 3. Top Command Ribbon (2-Tier Responsive)
         self.top_bar = TopCommandBar(self.sim, self)
@@ -267,13 +265,12 @@ class ROVDashboard(QMainWindow):
         super().changeEvent(event)
 
     def _process_keyboard_inputs(self):
-        """Translates held keys and joystick axes into normalized 4-DoF pilot thrust inputs."""
+        """Translates held keys into normalized pilot thrust commands (Surge, Sway, Heave, Yaw) for the 6-DOF ROV."""
         surge = 0.0
         sway = 0.0
         heave = 0.0
         yaw = 0.0
 
-        # Keyboard Controls
         if Qt.Key_Up in self.pressed_keys:
             surge += 1.0
         if Qt.Key_Down in self.pressed_keys:
@@ -294,25 +291,7 @@ class ROVDashboard(QMainWindow):
         if Qt.Key_A in self.pressed_keys:
             yaw -= 1.0    # Turn Left (Counter-Clockwise)
 
-        # Joystick / Gamepad Controls (Blended with keyboard if connected)
-        joy_state = self.joystick.read_inputs()
-        if joy_state["active"]:
-            surge += joy_state["surge"]
-            sway += joy_state["sway"]
-            heave += joy_state["heave"]
-            yaw += joy_state["yaw"]
-
-        if joy_state.get("btn_arm") and not self.sim.armed:
-            self.sim.arm()
-        if joy_state.get("btn_manual") and self.sim.mode != "MANUAL":
-            self.sim.set_mode("MANUAL")
-
-        self.sim.send_manual_thrust(
-            surge=max(-1.0, min(1.0, surge)),
-            sway=max(-1.0, min(1.0, sway)),
-            heave=max(-1.0, min(1.0, heave)),
-            yaw=max(-1.0, min(1.0, yaw))
-        )
+        self.sim.send_manual_thrust(surge=surge, sway=sway, heave=heave, yaw=yaw)
 
     # -------------------------------------------------------------
     # Main 20 Hz Synchronous Update
@@ -321,8 +300,8 @@ class ROVDashboard(QMainWindow):
         """Dispatches telemetry state across all modular view components."""
         self.elapsed_time += 0.05
 
-        # Continuously refresh manual thrust while keys are held or joystick active
-        if self.pressed_keys or (self.joystick.is_connected):
+        # Continuously refresh manual thrust while keys are held (prevents watchdog timeout during active hold)
+        if self.pressed_keys:
             self._process_keyboard_inputs()
 
         # 1. Update Disarm Banner

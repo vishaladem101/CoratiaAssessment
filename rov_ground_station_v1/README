@@ -1,0 +1,268 @@
+================================================================================
+         ROV TELEMETRY GROUND STATION - DAM INSPECTION MISSION CONTROL
+       Coratia Technologies Software Internship Technical Assessment
+================================================================================
+
+A native cross-platform desktop application built with Python & PySide6 (Qt)
+simulating an underwater dam inspection ROV deployed at Nagarjuna Sagar Dam.
+
+
+================================================================================
+1. HOW TO RUN THE APPLICATION (BY OPERATING SYSTEM)
+================================================================================
+
+Choose your operating system below to start the ground station immediately:
+
+--------------------------------------------------------------------------------
+[WINDOWS]
+--------------------------------------------------------------------------------
+  Method A (Easiest - 1 Click):
+    Simply double-click the file:
+      scripts\run_windows.bat
+
+  Method B (Via Command Prompt or PowerShell):
+    Open your terminal in this project folder and run:
+      python -m venv venv
+      venv\Scripts\activate
+      pip install -r scripts\requirements.txt
+      python main.py
+
+--------------------------------------------------------------------------------
+[LINUX / UBUNTU]
+--------------------------------------------------------------------------------
+  Method A (Easiest - 1 Click Script):
+    Open your terminal in this project folder and run:
+      ./scripts/run_linux.sh
+
+  Method B (Via Terminal manually):
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r scripts/requirements.txt
+    python3 main.py
+
+  Method C (Pre-compiled Standalone Binary):
+    If using the standalone build, you can launch it directly without Python:
+      ./dist/ROVGroundStation/ROVGroundStation
+
+
+================================================================================
+2. PILOT CONTROLS (KEYBOARD & JOYSTICK)
+================================================================================
+
+IMPORTANT: When the station opens, the vehicle is in a safe "DISARMED" state.
+Click the red [DISARMED] button in the top bar to ARM thrusters before flying.
+
+--------------------------------------------------------------------------------
+Keyboard Flight Controls:
+--------------------------------------------------------------------------------
+  * UP ARROW (^)    : Surge Forward (pushes ROV forward up to 1.8 m/s)
+  * DOWN ARROW (v)  : Surge Reverse (pushes ROV backward)
+  * RIGHT ARROW (>) : Strafe Right (lateral sway up to 1.2 m/s)
+  * LEFT ARROW (<)  : Strafe Left (lateral sway)
+  * S KEY           : Dive (pushes vertical thrusters downward)
+  * W KEY           : Surface / Ascend (rises toward surface 0.0m)
+  * D KEY           : Turn Right / Clockwise (yaw rotation)
+  * A KEY           : Turn Left / Counter-Clockwise (yaw rotation)
+
+  Note on Key Behavior:
+    - Holding any flight key drives the ROV continuously.
+    - Releasing the key cuts motor power and water drag stops the ROV promptly.
+    - If unpressed for 1.0 second in Manual mode, the safety watchdog auto-cuts
+      all manual thrust to zero.
+    - Multi-key combinations (e.g., UP + RIGHT for diagonal movement) work
+      simultaneously.
+
+--------------------------------------------------------------------------------
+USB Gamepad / Joystick Flight Controls (Plug-and-Play):
+--------------------------------------------------------------------------------
+  * Left Stick (Y-axis)  : Forward / Reverse
+  * Left Stick (X-axis)  : Strafe Left / Right
+  * Right Stick (Y-axis) : Dive / Surface
+  * Right Stick (X-axis) : Turn Left / Right
+  * Button A (Cross)     : Arm / Disarm Toggle
+  * Button B (Circle)    : Quick Release to Manual Mode
+
+
+================================================================================
+3. AUTOPILOT MODES & MISSION CONTROLS
+================================================================================
+
+The Ground Station supports 3 primary operational modes:
+
+1. MANUAL MODE (100% Pilot Control):
+   Direct joystick or keyboard driving with active water drag deceleration.
+   Thrusters auto-cut after 1 second of operator inactivity.
+
+2. DEPTH HOLD MODE (Closed-Loop Vertical Autopilot):
+   - Type your desired target depth in the "Target Depth" box (e.g., 10.0 m)
+     and click [ENGAGE DEPTH HOLD], or select DEPTH_HOLD from the dropdown.
+   - Closed-loop proportional-derivative (PD) controller locks vertical depth.
+   - Even if strong downward spillway currents push the vehicle, vertical
+     thrusters dynamically adjust to keep the ROV locked at the exact target.
+   - While Depth Hold is active, you can still steer forward/back/left/right,
+     or use W/S to smoothly nudge the target depth.
+
+3. HEADING HOLD MODE (Closed-Loop Compass Direction Autopilot):
+   - Type your target compass heading in degrees (0 to 359) and click
+     [ENGAGE HEADING HOLD].
+   - Autopilot automatically fires differential yaw thrusters to align the
+     nose of the ROV with the requested heading and resist rotational drift.
+   - While Heading Hold is active, you can still drive forward or dive.
+
+4. DUAL HOLD (DEPTH & HEADING HOLD):
+   Both closed-loop controllers run simultaneously, holding both depth and
+   orientation while allowing manual horizontal translation.
+
+
+================================================================================
+4. KEY FEATURES & DASHBOARD MODULES
+================================================================================
+
+1. SUBSEA WATER COLUMN CROSS-SECTION (2D Live Canvas):
+   - Custom real-time visual canvas rendering the surface waves and the
+     Surface Support Boat (GPS Anchor) floating at 0.0m.
+   - Umbilical tether cable connects the surface vessel to the underwater ROV.
+   - Dynamic auto-scaling depth ruler that smoothly adjusts from surface to
+     deep water (up to 100m).
+   - Live gold dashed setpoint line showing target depth during Depth Hold.
+   - Real-time forward headlights illuminate murky reservoir water.
+
+2. LIVE DEPTH-VS-TIME PROFILE CHART:
+   - Hardware-accelerated dynamic real-time depth graph (pyqtgraph).
+   - Inverted depth axis (0m surface at top, diving down).
+   - Cyan dashed Surface (0m) reference line and dynamic Target Depth setpoint.
+   - Time axis locked in standard SI seconds (s).
+
+3. HIGH-RESOLUTION OFFLINE MAP (Nagarjuna Sagar Dam Reservoir):
+   - Positioned directly over Nagarjuna Sagar Dam (16.579554 N, 79.312759 E).
+   - 100% OFFLINE operation using pre-cached local map tiles (no internet needed).
+   - Two selectable layer options:
+       * "Satellite"  : High-resolution satellite imagery (default).
+       * "Street Map" : OpenStreetMap street/reservoir topographic view.
+   - Live GPS coordinate display, compass heading, and live support boat anchor.
+
+4. SIMULATED WATER CURRENT (Hydrodynamic Environmental Drift):
+   - 4 selectable river current speed presets:
+       * Calm (0.0 m/s)
+       * Mild (0.3 m/s)
+       * Moderate (0.7 m/s)
+       * Strong (1.2 m/s)
+   - Compass flow direction selector (East 90 deg, SE 135 deg Spillway, etc.).
+   - Optional Spillway Downdraft (0.25 m/s suction) to test autopilot response.
+
+5. SUBSEA 5S LI-ION BATTERY SYSTEM:
+   - Modeled after real-world subsea robotics power packs: 5S Li-ion/NMC
+     (21.0V Full, 18.5V Nominal, 15.0V Cutoff limit).
+   - Real-time dynamic load-based drain: power draws faster when thrusters fire.
+   - Color-coded voltage badge with percentage calculation.
+
+6. SAFETY WATCHDOG & INTERLOCKS:
+   - Disarmed Lock: Propellers are strictly cut to 0% power when Disarmed.
+   - Prominent red alert banner warns operator whenever the vehicle is disarmed.
+   - 1.0-second inactivity watchdog neutralizes thrust if keyboard is released.
+
+
+================================================================================
+5. SOFTWARE ARCHITECTURE (CLEAN MVC PATTERN)
+================================================================================
+
+The codebase follows strict Model-View-Controller (MVC) separation:
+
+* MODEL (src/rov_simulator.py):
+  - Pure Python physics engine independent of any GUI libraries.
+  - Simulates full 6-DOF underwater kinematics (Surge, Sway, Heave, Roll,
+    Pitch, Yaw): provides active thruster driving for Surge, Sway, Heave,
+    and Yaw, with passive metacentric self-righting stability maintaining
+    Roll and Pitch level at 0.0°.
+  - Implements motor lag (exponential filter), water resistance drag damping,
+    environmental river currents, battery discharge, and closed-loop PD
+    controllers for depth and heading hold.
+
+* VIEW (src/view/ modular package):
+  - src/view/dashboard.py      : Master window shell and 20 Hz event coordinator.
+  - src/view/top_bar.py        : Arm switch, mode selector, hold setpoint controls.
+  - src/view/left_panel.py     : Primary telemetry speeds, thruster gauges, keymap.
+  - src/view/right_panel.py    : 2D water column, depth plot, offline map.
+  - src/view/custom_widgets.py : SubseaWaterColumnWidget (QPainter) & CleanSpinBox.
+  - src/view/title_bar.py      : Frameless title bar with window controls.
+  - src/view/resources.py      : Cross-platform asset path resolution.
+
+* CONTROLLER (main.py):
+  - Initializes the application and runs a synchronized 20 Hz (50 ms) loop.
+  - Polls pilot inputs, steps the physics model, and pushes fresh telemetry
+    to all visual components.
+
+
+================================================================================
+6. PROJECT FILE DIRECTORY
+================================================================================
+
+rov_ground_station_v1/
+  |-- assets/                      Map files, vector icons & local tile cache
+  |     |-- tiles/                 100% offline tiles (Satellite & Street Map)
+  |     |-- map_view.html          Leaflet offline map container
+  |     |-- leaflet.js             Bundled offline Leaflet script
+  |     |-- leaflet.css            Bundled Leaflet stylesheet
+  |     `-- rov_icon.png           Application icon
+  |-- src/                         Source Code (Model-View-Controller)
+  |     |-- config.py              Simulation parameters & physical constants
+  |     |-- rov_simulator.py       [Model] Backend physics, drag & PD controllers
+  |     |-- joystick_controller.py Plug-and-play USB gamepad input processor
+  |     |-- ui_dashboard.py        Backward-compatibility view re-export
+  |     `-- view/                  [View] Modular GUI components
+  |           |-- dashboard.py     Master window shell & update loop
+  |           |-- top_bar.py       Command ribbon, hold inputs & battery badge
+  |           |-- left_panel.py    Speeds, thruster load bars & help box
+  |           |-- right_panel.py   2D water column, depth plot & offline map
+  |           |-- custom_widgets.py 2D QPainter canvas & CleanSpinBox
+  |           `-- title_bar.py     Window controls
+  |-- scripts/                     Launchers and cross-platform build scripts
+  |     |-- run_linux.sh           1-click launcher for Linux / Ubuntu
+  |     |-- run_windows.bat        1-click launcher for Windows
+  |     |-- build_desktop_app.py   Standalone binary packaging script
+  |     |-- download_offline_tiles.py Tool to cache dam reservoir map tiles
+  |     `-- requirements.txt       Clean, minimal Python dependencies
+  |-- main.py                      [Controller] Application entrypoint (20 Hz)
+  `-- README                       This file (plain text documentation)
+
+
+================================================================================
+7. COMPILING STANDALONE BINARIES (FOR DEVELOPERS)
+================================================================================
+
+To package the application into a standalone executable that runs without
+requiring Python installed on the target machine:
+
+  python scripts/build_desktop_app.py
+
+  * On Windows: Produces dist\ROVGroundStation\ROVGroundStation.exe
+  * On Linux  : Produces dist/ROVGroundStation/ROVGroundStation
+
+
+================================================================================
+8. DEVELOPMENT & TEST ENVIRONMENT SYSTEM SPECIFICATIONS
+================================================================================
+
+This application was engineered, tested, and verified on the following hardware
+and operating system environment:
+
+  * Operating System      : Linux / Ubuntu
+  * OS Version            : Ubuntu 24.04.5 LTS (Noble Numbat)
+  * Linux Kernel          : 6.8.0-149-generic (x86_64)
+  * Total System RAM      : 16 GB 
+  * Processor (CPU)       : 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz 
+  * Python Runtime        : Python 3.12.3 (GCC 13.3.0, 64-bit)
+  * Graphical Framework   : PySide6 (Qt 6.7.x) & pyqtgraph (OpenGL/QtGraphics)
+
+
+================================================================================
+9. AI DISCLOSURE
+================================================================================
+* Tool Used: Antigravity (Powered by Gemini)
+* Usage: Assisted in designing the modular MVC architecture (separating backend
+  physics from presentation GUI), implementing the 2D subsea water column view
+  using QPainter, configuring offline map caching, and writing cross-platform
+  launchers and PyInstaller build specifications. All kinematics, control loops,
+  and hydrodynamics were reviewed and verified by the candidate.
+
+================================================================================

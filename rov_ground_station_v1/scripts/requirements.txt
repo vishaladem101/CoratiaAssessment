@@ -1,5 +1,5 @@
 # ROV Telemetry Ground Station - Python Dependencies
-# Compatible with Windows, Linux (Ubuntu), and macOS
+# Compatible with Linux (Ubuntu) and Windows
 
 PySide6>=6.5.0
 pyqtgraph>=0.13.0
